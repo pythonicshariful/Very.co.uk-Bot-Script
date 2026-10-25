@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name         Very.co.uk Bot Script
 // @namespace    http://tampermonkey.net/
-// @version      2.0
-// @description  Advanced automation bot for very.co.uk with UI Console, Search Monitor, Auto-Add to Basket, Login Autofill & Webhooks
+// @version      2.1
+// @description  Advanced automation bot for very.co.uk with UI Console, Search Monitor, Auto-Add to Basket, Login Autofill, Full Checkout Automation & Webhooks
 // @author       Pythonic Shariful
 // @match        https://www.very.co.uk/*
-// @noframes
+// @match        https://flex.cybersource.com/*
 // @run-at       document-idle
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -17,8 +17,11 @@
 (function() {
     'use strict';
 
-    // Strictly prevent running inside sandboxed/hidden anti-bot iframes or about:blank
-    if (window.top !== window.self) {
+    const isTop = (window.top === window.self);
+    const isCybersourceFrame = window.location.hostname.includes('flex.cybersource.com');
+
+    // Strictly prevent running inside unknown sandboxed/hidden tracking or anti-bot iframes or about:blank
+    if (!isTop && !isCybersourceFrame) {
         return;
     }
 
@@ -466,7 +469,7 @@
                     font-size: 11px !important;
                 }
                 #very-bot-script-ui.bot-size-small #tab-profile {
-                    max-height: 160px !important;
+                    max-height: 200px !important;
                 }
                 #very-bot-script-ui.bot-size-small .bot-console-section {
                     margin-top: 8px !important;
@@ -571,11 +574,30 @@
                 </div>
 
                 <!-- TAB 3: PROFILE -->
-                <div id="tab-profile" class="bot-tab-pane" style="display: none; max-height: 220px; overflow-y: auto; padding-right: 4px;">
+                <div id="tab-profile" class="bot-tab-pane" style="display: none; max-height: 260px; overflow-y: auto; padding-right: 4px;">
                     <div style="font-size: 10px; font-weight: 700; color: #ec4899; margin-bottom: 6px; padding-bottom: 3px; border-bottom: 1px solid rgba(255,255,255,0.1); text-transform: uppercase;">Very.co.uk Login Credentials</div>
                     <input type="text" id="p_email" placeholder="Account Number or Email" style="width: 100%; box-sizing: border-box; padding: 6px; background: rgba(0,0,0,0.3); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; outline: none; font-size: 11px; margin-bottom: 6px;" />
                     <input type="password" id="p_password" placeholder="Password" style="width: 100%; box-sizing: border-box; padding: 6px; background: rgba(0,0,0,0.3); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; outline: none; font-size: 11px; margin-bottom: 6px;" />
                     <input type="text" id="p_postcode" placeholder="Postcode (if requested)" style="width: 100%; box-sizing: border-box; padding: 6px; background: rgba(0,0,0,0.3); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; outline: none; font-size: 11px; margin-bottom: 12px;" />
+
+                    <div style="font-size: 10px; font-weight: 700; color: #10b981; margin-bottom: 6px; padding-bottom: 3px; border-bottom: 1px solid rgba(255,255,255,0.1); text-transform: uppercase;">💳 Checkout & Card Details</div>
+                    <div style="display: flex; gap: 8px; margin-bottom: 6px;">
+                        <div style="flex: 1;">
+                            <label style="font-size: 10px; color: #94a3b8; display: block; margin-bottom: 2px;">Security Code (CVV)</label>
+                            <input type="password" id="p_card_cvv" placeholder="e.g. 123" maxlength="4" style="width: 100%; box-sizing: border-box; padding: 6px; background: rgba(0,0,0,0.3); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; outline: none; font-size: 11px;" />
+                        </div>
+                        <div style="flex: 1;">
+                            <label style="font-size: 10px; color: #94a3b8; display: block; margin-bottom: 2px;">Account Address?</label>
+                            <select id="p_card_address" style="width: 100%; box-sizing: border-box; padding: 6px; background: rgba(0,0,0,0.3); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; outline: none; font-size: 11px;">
+                                <option value="Yes">Yes (Registered)</option>
+                                <option value="No">No</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 6px; margin-bottom: 12px; align-items: center;">
+                        <input type="checkbox" id="p_auto_paynow" style="cursor: pointer;" checked />
+                        <label for="p_auto_paynow" style="font-size: 11px; color: #cbd5e1; cursor: pointer;">Auto Click "Pay now"</label>
+                    </div>
 
                     <div style="font-size: 10px; font-weight: 700; color: #a855f7; margin-bottom: 6px; padding-bottom: 3px; border-bottom: 1px solid rgba(255,255,255,0.1); text-transform: uppercase;">Notifications (Webhooks)</div>
                     <div style="display: flex; gap: 6px; margin-bottom: 6px; align-items: center;">
@@ -708,6 +730,9 @@
         const p_tg_chat = document.getElementById('p_tg_chat');
         const p_discord_enabled = document.getElementById('p_discord_enabled');
         const p_discord_webhook = document.getElementById('p_discord_webhook');
+        const p_card_cvv = document.getElementById('p_card_cvv');
+        const p_card_address = document.getElementById('p_card_address');
+        const p_auto_paynow = document.getElementById('p_auto_paynow');
 
         if (p_email) p_email.value = localStorage.getItem('very_bot_email') || 'masudranadarkwolf@gmail.com';
         if (p_password) p_password.value = localStorage.getItem('very_bot_pass') || 'Hacktanha24';
@@ -717,6 +742,10 @@
         if (botTargetQty) botTargetQty.value = localStorage.getItem('very_bot_target_qty') || '1';
         if (botMinDelay) botMinDelay.value = localStorage.getItem('very_bot_min_delay') || '4';
         if (botMaxDelay) botMaxDelay.value = localStorage.getItem('very_bot_max_delay') || '10';
+
+        if (p_card_cvv) p_card_cvv.value = localStorage.getItem('very_bot_cvv') || (typeof GM_getValue !== 'undefined' ? GM_getValue('very_bot_cvv', '') : '') || '';
+        if (p_card_address) p_card_address.value = localStorage.getItem('very_bot_card_address') || 'Yes';
+        if (p_auto_paynow) p_auto_paynow.checked = localStorage.getItem('very_bot_auto_paynow') !== 'false';
 
         if (p_tg_enabled) p_tg_enabled.checked = localStorage.getItem('very_bot_tg_enabled') === 'true';
         if (p_tg_token) p_tg_token.value = localStorage.getItem('very_bot_tg_token') || '';
@@ -734,6 +763,16 @@
             localStorage.setItem('very_bot_target_qty', botTargetQty.value);
             localStorage.setItem('very_bot_min_delay', botMinDelay.value);
             localStorage.setItem('very_bot_max_delay', botMaxDelay.value);
+
+            localStorage.setItem('very_bot_cvv', p_card_cvv.value.trim());
+            localStorage.setItem('very_bot_card_address', p_card_address.value);
+            localStorage.setItem('very_bot_auto_paynow', p_auto_paynow.checked);
+
+            if (typeof GM_setValue !== 'undefined') {
+                GM_setValue('very_bot_cvv', p_card_cvv.value.trim());
+                GM_setValue('very_bot_card_address', p_card_address.value);
+                GM_setValue('very_bot_auto_paynow', p_auto_paynow.checked);
+            }
 
             localStorage.setItem('very_bot_tg_enabled', p_tg_enabled.checked);
             localStorage.setItem('very_bot_tg_token', p_tg_token.value.trim());
@@ -758,6 +797,7 @@
             if (!isBotRunning) {
                 isBotRunning = true;
                 localStorage.setItem('very_bot_running', 'true');
+                if (typeof GM_setValue !== 'undefined') GM_setValue('very_bot_running', true);
                 logToConsole("Bot started.", "success");
                 updateButtons();
             }
@@ -767,6 +807,7 @@
             if (isBotRunning) {
                 isBotRunning = false;
                 localStorage.setItem('very_bot_running', 'false');
+                if (typeof GM_setValue !== 'undefined') GM_setValue('very_bot_running', false);
                 botActionInProgress = false;
                 logToConsole("Bot stopped.", "error");
                 updateButtons();
@@ -1110,7 +1151,208 @@
     }
 
     // =========================================================================
-    // 7. BACKGROUND SEARCH MONITOR (https://www.very.co.uk/search/*)
+    // 7. CHECKOUT AUTOMATION (/checkout/*)
+    // =========================================================================
+
+    let lastCheckoutStep = '';
+    let lastCheckoutStepTime = 0;
+
+    async function executeCheckoutPageBot() {
+        if (!isBotRunning || botActionInProgress) return;
+        botActionInProgress = true;
+
+        try {
+            const currentUrl = window.location.href.toLowerCase();
+
+            // -------------------------------------------------------------
+            // STEP 1: Delivery Page (/checkout/delivery)
+            // -------------------------------------------------------------
+            if (currentUrl.includes('/checkout/delivery')) {
+                const now = Date.now();
+                if (lastCheckoutStep === 'delivery' && (now - lastCheckoutStepTime) < 4000) {
+                    botActionInProgress = false;
+                    return;
+                }
+
+                logToConsole("Delivery page detected. Checking for Continue button...", "info");
+                await sleep(gaussianRandom(500, 60, 300, 800));
+
+                const continueBtn = document.querySelector('button[data-testid="continue-to-payment-button"]') ||
+                                    document.querySelector('button._button_st30a_1._tappableArea_1kc19_1.fuse-button[type="button"]') ||
+                                    Array.from(document.querySelectorAll('button')).find(b => {
+                                        const txt = (b.innerText || '').trim().toLowerCase();
+                                        return (txt === 'continue' || txt.includes('continue to payment')) && b.offsetParent !== null && !b.disabled;
+                                    });
+
+                if (continueBtn && !continueBtn.disabled) {
+                    logToConsole("Clicking 'Continue to payment' button...", "success");
+                    lastCheckoutStep = 'delivery';
+                    lastCheckoutStepTime = Date.now();
+                    await simulateHumanClick(continueBtn);
+                    try { continueBtn.click(); } catch(e) {}
+                    await sleep(2500);
+                } else {
+                    logToConsole("Waiting for Continue button on Delivery page...", "warning");
+                }
+                botActionInProgress = false;
+                return;
+            }
+
+            // -------------------------------------------------------------
+            // STEP 2: Pay in Full Option (/checkout/payment/pay-in-full)
+            // -------------------------------------------------------------
+            if (currentUrl.includes('/checkout/payment/pay-in-full')) {
+                const now = Date.now();
+                if (lastCheckoutStep === 'pay-in-full' && (now - lastCheckoutStepTime) < 4000) {
+                    botActionInProgress = false;
+                    return;
+                }
+
+                logToConsole("Payment option page detected (Pay in full). Checking for Continue button...", "info");
+                await sleep(gaussianRandom(500, 60, 300, 800));
+
+                const continueBtn = document.querySelector('button[data-testid="payment-total-action"]') ||
+                                    document.querySelector('button._button_st30a_1._tappableArea_1kc19_1.fuse-button[type="submit"]') ||
+                                    Array.from(document.querySelectorAll('button')).find(b => {
+                                        const txt = (b.innerText || '').trim().toLowerCase();
+                                        return txt === 'continue' && b.offsetParent !== null && !b.disabled;
+                                    });
+
+                if (continueBtn && !continueBtn.disabled) {
+                    logToConsole("Clicking Payment Total 'Continue' button...", "success");
+                    lastCheckoutStep = 'pay-in-full';
+                    lastCheckoutStepTime = Date.now();
+                    await simulateHumanClick(continueBtn);
+                    try { continueBtn.click(); } catch(e) {}
+                    await sleep(2500);
+                } else {
+                    logToConsole("Waiting for Continue button on Payment option page...", "warning");
+                }
+                botActionInProgress = false;
+                return;
+            }
+
+            // -------------------------------------------------------------
+            // STEP 3: Card Details, Registered Address & Security Code (/checkout/payment/card)
+            // -------------------------------------------------------------
+            if (currentUrl.includes('/checkout/payment/card') || (currentUrl.includes('/checkout/payment') && document.querySelector('button[data-testid="pay-now-button"], [data-testid="card-address-yes"], #securityCode-container'))) {
+                const preferredAddress = localStorage.getItem('very_bot_card_address') || 'Yes';
+                const configuredCvv = localStorage.getItem('very_bot_cvv') || (typeof GM_getValue !== 'undefined' ? GM_getValue('very_bot_cvv', '') : '') || '';
+                const autoPay = localStorage.getItem('very_bot_auto_paynow') !== 'false';
+
+                // 3A. Select Card Registered Address
+                const targetTestId = preferredAddress.toLowerCase() === 'no' ? 'card-address-no' : 'card-address-yes';
+                const targetRadioId = preferredAddress.toLowerCase() === 'no' ? 'account-address-no' : 'account-address-yes';
+
+                const radioInput = document.getElementById(targetRadioId) ||
+                                   document.querySelector(`[data-testid="${targetTestId}"] input[type="radio"]`) ||
+                                   document.querySelector(`input[name="card-address"][value="${preferredAddress}"]`);
+
+                if (radioInput && !radioInput.checked) {
+                    logToConsole(`Selecting card registered at account address: ${preferredAddress}...`, "info");
+                    const clickableTarget = document.querySelector(`label[for="${targetRadioId}"]`) ||
+                                           document.querySelector(`[data-testid="${targetTestId}"] label`) ||
+                                           document.querySelector(`[data-testid="${targetTestId}"]`) ||
+                                           radioInput;
+                    await simulateHumanClick(clickableTarget);
+                    radioInput.checked = true;
+                    radioInput.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+                    radioInput.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+                    await sleep(gaussianRandom(350, 40, 200, 500));
+                }
+
+                // 3B. Input Security Code (CVV)
+                if (!configuredCvv) {
+                    logToConsole("⚠️ Card Security Code (CVV) not set! Please set CVV in Profile tab.", "warning");
+                } else {
+                    // Check if direct input exists in DOM
+                    const directCvv = document.getElementById('securityCode') ||
+                                      document.querySelector('input[name="securityCode"]') ||
+                                      document.querySelector('input[aria-label="Card security code"]');
+
+                    if (directCvv && directCvv.offsetParent !== null) {
+                        if (directCvv.value !== configuredCvv) {
+                            logToConsole("Entering Card Security Code directly...", "info");
+                            await simulateHumanType(directCvv, configuredCvv);
+                            await sleep(gaussianRandom(300, 40, 150, 450));
+                        }
+                    } else {
+                        // CyberSource iframe
+                        if (typeof GM_setValue !== 'undefined') {
+                            GM_setValue('very_bot_cvv', configuredCvv);
+                            GM_setValue('very_bot_fill_cvv_trigger', Date.now());
+                        }
+                        const iframes = document.querySelectorAll('#securityCode-container iframe, iframe[src*="cybersource"], iframe[title*="payment"]');
+                        if (iframes.length > 0) {
+                            iframes.forEach(f => {
+                                try {
+                                    f.contentWindow?.postMessage({ type: 'VERY_BOT_FILL_CVV', cvv: configuredCvv }, '*');
+                                } catch(e) {}
+                            });
+                        }
+                    }
+                }
+
+                // 3C. Click "Pay now"
+                if (autoPay) {
+                    const payNowBtn = document.querySelector('button[data-testid="pay-now-button"]') ||
+                                      document.querySelector('button.fuse-styled-button[data-testid="pay-now-button"]') ||
+                                      Array.from(document.querySelectorAll('button')).find(b => {
+                                          const txt = (b.innerText || '').trim().toLowerCase();
+                                          return txt === 'pay now' && b.offsetParent !== null;
+                                      });
+
+                    if (payNowBtn) {
+                        const isDisabled = payNowBtn.disabled || payNowBtn.getAttribute('aria-disabled') === 'true';
+                        if (!isDisabled) {
+                            const now = Date.now();
+                            if (lastCheckoutStep === 'pay-now' && (now - lastCheckoutStepTime) < 5000) {
+                                botActionInProgress = false;
+                                return;
+                            }
+
+                            logToConsole("🎉 All details ready. Clicking 'Pay now' button...", "success");
+                            lastCheckoutStep = 'pay-now';
+                            lastCheckoutStepTime = Date.now();
+                            await sleep(gaussianRandom(400, 50, 250, 600));
+                            await simulateHumanClick(payNowBtn);
+                            try { payNowBtn.click(); } catch(e) {}
+                            notifyUser("VeryBot: Order Payment Submitted!", "Clicked Pay now button successfully.", window.location.href);
+                            await sleep(4000);
+                        } else {
+                            logToConsole("Waiting for 'Pay now' button to become active (validating CVV & address)...", "info");
+                        }
+                    }
+                }
+                botActionInProgress = false;
+                return;
+            }
+
+            // General checkout fallback
+            const genericContinueBtn = document.querySelector('button[data-testid*="continue"], button[data-testid*="payment"]') ||
+                                      Array.from(document.querySelectorAll('button')).find(b => {
+                                          const txt = (b.innerText || '').trim().toLowerCase();
+                                          return (txt === 'continue' || txt === 'continue to payment') && b.offsetParent !== null && !b.disabled;
+                                      });
+            if (genericContinueBtn && !genericContinueBtn.disabled) {
+                const now = Date.now();
+                if ((now - lastCheckoutStepTime) > 4000) {
+                    logToConsole("Generic Checkout Continue detected. Clicking...", "info");
+                    lastCheckoutStepTime = now;
+                    await simulateHumanClick(genericContinueBtn);
+                    try { genericContinueBtn.click(); } catch(e) {}
+                    await sleep(2500);
+                }
+            }
+        } catch (err) {
+            logToConsole("Checkout handler error: " + err.message, "error");
+        } finally {
+            botActionInProgress = false;
+        }
+    }
+
+    // =========================================================================
+    // 8. BACKGROUND SEARCH MONITOR (https://www.very.co.uk/search/*)
     // =========================================================================
 
     let knownProductsState = JSON.parse(sessionStorage.getItem('very_bot_known_products') || '{}');
@@ -1236,7 +1478,7 @@
     }
 
     // =========================================================================
-    // 8. ROUTING & STATE MACHINE
+    // 9. ROUTING & STATE MACHINE
     // =========================================================================
 
     function isLoginPage() {
@@ -1260,6 +1502,12 @@
             message = "🔍 Search Page Detected";
         } else if (currentUrl.includes('/basket')) {
             message = "🛒 Basket Page Detected";
+        } else if (currentUrl.includes('/checkout/delivery')) {
+            message = "🚚 Checkout Delivery";
+        } else if (currentUrl.includes('/checkout/payment/pay-in-full')) {
+            message = "💰 Checkout Pay in Full";
+        } else if (currentUrl.includes('/checkout/payment/card')) {
+            message = "💳 Checkout Card & CVV";
         } else if (currentUrl.includes('/checkout')) {
             message = "💳 Checkout Page Detected";
         }
@@ -1285,13 +1533,84 @@
             await executeProductPageBot();
         } else if (currentUrl.includes('/basket')) {
             await executeBasketPageBot();
+        } else if (currentUrl.includes('/checkout')) {
+            await executeCheckoutPageBot();
         } else if (searchUrl && !isBuyingProcess) {
             await executeSearchMonitorBackground();
         }
     }
 
     // =========================================================================
-    // 9. INITIALIZATION
+    // 10. CYBERSOURCE MICROFORM FRAME HANDLER
+    // =========================================================================
+
+    async function initCybersourceFrameHandler() {
+        async function tryFillSecurityCode(forcedCvv = null) {
+            const cvv = forcedCvv || (typeof GM_getValue !== 'undefined' ? GM_getValue('very_bot_cvv') : '') || '';
+            const isRunning = typeof GM_getValue !== 'undefined' ? (GM_getValue('very_bot_running') === true || GM_getValue('very_bot_running') === 'true') : true;
+            if (!cvv || !isRunning) return false;
+
+            const input = document.getElementById('securityCode') ||
+                          document.querySelector('input[name="securityCode"]') ||
+                          document.querySelector('input[aria-label="Card security code"]') ||
+                          document.querySelector('input[inputmode="numeric"]');
+
+            if (!input) return false;
+
+            if (input.value === cvv) return true;
+
+            try {
+                input.focus();
+                await sleep(gaussianRandom(200, 30, 100, 350));
+                await simulateHumanType(input, cvv);
+                input.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+                input.dispatchEvent(new Event('blur', { bubbles: true }));
+
+                try {
+                    window.parent.postMessage({ type: 'VERY_BOT_CVV_FILLED', success: true }, '*');
+                } catch(e) {}
+                if (typeof GM_setValue !== 'undefined') {
+                    GM_setValue('very_bot_cvv_filled', Date.now());
+                }
+                return true;
+            } catch (err) {
+                console.error("Cybersource CVV fill error:", err);
+                return false;
+            }
+        }
+
+        // 1. Listen for postMessage from parent
+        window.addEventListener('message', async (e) => {
+            if (e.data && e.data.type === 'VERY_BOT_FILL_CVV') {
+                await tryFillSecurityCode(e.data.cvv);
+            }
+        });
+
+        // 2. Listen for GM trigger from parent
+        if (typeof GM_addValueChangeListener !== 'undefined') {
+            GM_addValueChangeListener('very_bot_fill_cvv_trigger', async () => {
+                await tryFillSecurityCode();
+            });
+            GM_addValueChangeListener('very_bot_running', async (name, oldVal, newVal) => {
+                if (newVal === true || newVal === 'true') {
+                    await tryFillSecurityCode();
+                }
+            });
+        }
+
+        // 3. Periodic check when frame loads
+        let attempts = 0;
+        const checkInterval = setInterval(async () => {
+            attempts++;
+            const success = await tryFillSecurityCode();
+            if (success || attempts > 30) {
+                clearInterval(checkInterval);
+            }
+        }, 500);
+    }
+
+    // =========================================================================
+    // 11. INITIALIZATION
     // =========================================================================
 
     function startBot() {
@@ -1303,8 +1622,16 @@
         initUI();
         handleCookieBanner();
 
+        // Listen for CVV filled confirmation from iframe
+        window.addEventListener('message', (e) => {
+            if (e.data && e.data.type === 'VERY_BOT_CVV_FILLED') {
+                logToConsole("CyberSource iframe: Card Security Code entered.", "success");
+            }
+        });
+
         if (localStorage.getItem('very_bot_running') === 'true') {
             isBotRunning = true;
+            if (typeof GM_setValue !== 'undefined') GM_setValue('very_bot_running', true);
             updateButtons();
             logToConsole("Restored state: Bot is running.", "info");
         } else {
@@ -1316,13 +1643,21 @@
         setInterval(checkUrlAndUI, 500);
         setInterval(botLoop, 1000);
 
-        logToConsole("VeryBot UK initialized with biometric humanization.", "success");
+        logToConsole("VeryBot UK initialized with biometric humanization & checkout automation.", "success");
     }
 
-    if (document.readyState === 'loading') {
-        window.addEventListener('DOMContentLoaded', startBot);
-    } else {
-        startBot();
+    if (isCybersourceFrame) {
+        if (document.readyState === 'loading') {
+            window.addEventListener('DOMContentLoaded', initCybersourceFrameHandler);
+        } else {
+            initCybersourceFrameHandler();
+        }
+    } else if (isTop) {
+        if (document.readyState === 'loading') {
+            window.addEventListener('DOMContentLoaded', startBot);
+        } else {
+            startBot();
+        }
     }
 
 })();
